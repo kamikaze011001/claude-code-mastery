@@ -106,13 +106,17 @@ async function openDiagramModal(source) {
       if (result.bindFunctions) result.bindFunctions(body.querySelector('svg'));
     }
   } catch (err) {
+    console.error('[mermaid-modal]', err);
     var errMsg = document.createElement('p');
     errMsg.style.cssText = 'padding:2rem;color:#ef4444;font-family:monospace;font-size:0.85rem;';
     errMsg.textContent = 'Could not render diagram.';
     body.appendChild(errMsg);
   }
 
+  var closed = false;
   function close() {
+    if (closed) return;
+    closed = true;
     modal.classList.remove('mermaid-modal--open');
     setTimeout(function() { modal.remove(); document.body.style.overflow = ''; }, 220);
   }
