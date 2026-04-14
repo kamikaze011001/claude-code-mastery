@@ -5,21 +5,183 @@
 }
 
 /* ── Mermaid Diagrams ── */
-/* SVGs are rendered with hardcoded light-mode colors by rehype-mermaid.
-   In dark mode (the default for this site), wrap them in a light card so
-   connectors, node backgrounds, and text all remain readable. */
-svg[id^="mermaid-"] {
-  display: block;
+/* Mermaid renders SVG inside <pre class="mermaid"> — style the pre as the card.
+   Always use a white card so theme:'default' dark edges stay readable in both
+   light and dark site modes. Wide diagrams scroll horizontally instead of clipping. */
+
+pre.mermaid {
+  position: relative;
+  margin: 1.75rem auto;
+  padding: 0;
+  background: #ffffff;
+  border: 1px solid #dde1e7;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow-x: auto;
   max-width: 100%;
-  margin: 1.5rem auto;
-  border-radius: 8px;
-  padding: 1.25rem 1.5rem;
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
+  transition: box-shadow 180ms ease;
 }
 
-/* In light mode: transparent background (diagram colours already work) */
-[data-theme='light'] svg[id^="mermaid-"] {
-  background-color: transparent;
-  border-color: #e2e8f0;
+pre.mermaid:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+/* "Diagram" label at the top of every card */
+pre.mermaid::before {
+  content: 'Diagram';
+  display: block;
+  padding: 0.35rem 1rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6366f1;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.07) 0%, transparent 100%);
+  border-bottom: 1px solid #dde1e7;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+/* Dark mode: stronger shadow, softer border; label stays indigo-tinted */
+[data-theme='dark'] pre.mermaid {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme='dark'] pre.mermaid:hover {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] pre.mermaid::before {
+  color: #818cf8;
+  background: linear-gradient(90deg, rgba(129, 140, 248, 0.1) 0%, transparent 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+/* SVG inside the inline card — scoped so modal SVG is unaffected */
+pre.mermaid > svg[id^="mermaid-"] {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  padding: 1.25rem 1.75rem 1.5rem;
+  background: transparent;
+}
+
+/* ── Expand button ────────────────────────────────────────────────────────── */
+.mermaid-expand-btn {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease, background 150ms ease, transform 150ms ease;
+  z-index: 2;
+}
+
+pre.mermaid:hover .mermaid-expand-btn {
+  opacity: 1;
+}
+
+.mermaid-expand-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  transform: scale(1.1);
+}
+
+[data-theme='dark'] .mermaid-expand-btn {
+  background: rgba(129, 140, 248, 0.12);
+  color: #818cf8;
+}
+
+[data-theme='dark'] .mermaid-expand-btn:hover {
+  background: rgba(129, 140, 248, 0.22);
+}
+
+/* ── Diagram modal ────────────────────────────────────────────────────────── */
+#mermaid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+#mermaid-modal.mermaid-modal--open {
+  opacity: 1;
+}
+
+.mermaid-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.mermaid-modal-box {
+  position: relative;
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(92vw, 1100px);
+  max-height: 88vh;
+  overflow: auto;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.2);
+  transform: scale(0.94);
+  transition: transform 220ms ease;
+}
+
+#mermaid-modal.mermaid-modal--open .mermaid-modal-box {
+  transform: scale(1);
+}
+
+.mermaid-modal-close {
+  position: sticky;
+  top: 0.6rem;
+  float: right;
+  margin: 0.6rem 0.6rem 0 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.07);
+  color: #374151;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease;
+  z-index: 1;
+}
+
+.mermaid-modal-close:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.mermaid-modal-body {
+  padding: 0.5rem 2rem 2rem;
+  clear: both;
+  overflow-x: auto; /* wide diagrams scroll instead of clipping */
+}
+
+.mermaid-modal-body svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
 }
