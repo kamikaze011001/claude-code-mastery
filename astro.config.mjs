@@ -40,7 +40,153 @@ export default defineConfig({
         {
           tag: 'script',
           attrs: { type: 'module' },
-          content: `import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';mermaid.initialize({startOnLoad:true,theme:'dark'});`,
+          content: `import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose',
+  themeVariables: {
+    fontSize: '14px',
+    fontFamily: "'IBM Plex Sans', 'Inter', system-ui, sans-serif",
+    lineColor: '#374151',
+    edgeLabelBackground: '#f0f2f5',
+  },
+  flowchart: { curve: 'basis', htmlLabels: true },
+  sequence: { messageAlign: 'center', useMaxWidth: true },
+  er: { useMaxWidth: true },
+  gantt: { useMaxWidth: true },
+});
+
+// ── Modal: re-renders a fresh SVG from source text ──────────────────────────
+// Never clones the inline SVG — avoids dark-theme color/sizing artifacts.
+async function openDiagramModal(source) {
+  var existing = document.getElementById('mermaid-modal');
+  if (existing) existing.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'mermaid-modal';
+
+  var backdrop = document.createElement('div');
+  backdrop.className = 'mermaid-modal-backdrop';
+
+  var box = document.createElement('div');
+  box.className = 'mermaid-modal-box';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-label', 'Diagram');
+
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'mermaid-modal-close';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.textContent = '\u00D7';
+
+  var body = document.createElement('div');
+  body.className = 'mermaid-modal-body';
+
+  box.appendChild(closeBtn);
+  box.appendChild(body);
+  modal.appendChild(backdrop);
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  // Render fresh SVG — always white background, correctly sized
+  try {
+    var result = await mermaid.render('diagram-modal-' + Date.now(), source);
+    var parser = new DOMParser();
+    var parsed = parser.parseFromString(result.svg, 'image/svg+xml');
+    var svgEl = parsed.querySelector('svg');
+    if (svgEl) {
+      // Remove absolute pixel dimensions so CSS width:100% controls sizing
+      svgEl.removeAttribute('width');
+      svgEl.removeAttribute('height');
+      svgEl.style.cssText = 'display:block;width:100%;height:auto;';
+      body.appendChild(document.importNode(svgEl, true));
+      if (result.bindFunctions) result.bindFunctions(body.querySelector('svg'));
+    }
+  } catch (err) {
+    var errMsg = document.createElement('p');
+    errMsg.style.cssText = 'padding:2rem;color:#ef4444;font-family:monospace;font-size:0.85rem;';
+    errMsg.textContent = 'Could not render diagram.';
+    body.appendChild(errMsg);
+  }
+
+  function close() {
+    modal.classList.remove('mermaid-modal--open');
+    setTimeout(function() { modal.remove(); document.body.style.overflow = ''; }, 220);
+  }
+  backdrop.addEventListener('click', close);
+  closeBtn.addEventListener('click', close);
+  document.addEventListener('keydown', function kh(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', kh); }
+  });
+
+  requestAnimationFrame(function() { modal.classList.add('mermaid-modal--open'); });
+}
+
+// ── Enhance: adds expand button and click handler ────────────────────────────
+function enhanceDiagram(svg) {
+  var container = svg.closest('pre.mermaid') || svg.parentElement;
+  if (!container || container.dataset.enhanced) return;
+  var source = container.dataset.src;
+  if (!source) return; // no stored source — cannot re-render in modal
+
+  container.dataset.enhanced = 'true';
+  container.style.cursor = 'zoom-in';
+  container.style.position = 'relative';
+
+  var btn = document.createElement('button');
+  btn.className = 'mermaid-expand-btn';
+  btn.title = 'Expand diagram';
+  btn.setAttribute('aria-label', 'View diagram full size');
+  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+  container.appendChild(btn);
+
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    openDiagramModal(source).catch(console.error);
+  });
+  container.addEventListener('click', function(e) {
+    if (e.target !== btn) openDiagramModal(source).catch(console.error);
+  });
+}
+
+// ── Init: controlled rendering with source capture ───────────────────────────
+async function initDiagrams() {
+  // Only process pre.mermaid elements whose source hasn't been captured yet
+  var toRender = Array.from(document.querySelectorAll('pre.mermaid')).filter(function(pre) {
+    return !pre.dataset.src;
+  });
+  if (toRender.length === 0) return;
+
+  // 1. Capture source text BEFORE Mermaid replaces innerHTML
+  toRender.forEach(function(pre) {
+    pre.dataset.src = pre.textContent.trim();
+    pre.classList.add('mermaid-pending');
+  });
+
+  // 2. Render only the pending elements
+  try {
+    await mermaid.run({ querySelector: '.mermaid-pending' });
+  } catch (e) { /* page may have no diagrams or a parse error on one — continue */ }
+
+  // 3. Clean up transient class and enhance newly rendered SVGs
+  document.querySelectorAll('.mermaid-pending').forEach(function(pre) {
+    pre.classList.remove('mermaid-pending');
+  });
+  document.querySelectorAll('svg[id^="mermaid-"]').forEach(enhanceDiagram);
+}
+
+// Starlight uses View Transitions: astro:page-load fires on every navigation
+document.addEventListener('astro:page-load', function() { initDiagrams(); });
+
+// Fallback: if astro:page-load doesn't fire on initial load in this environment
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() { initDiagrams(); });
+} else {
+  initDiagrams();
+}`,
         },
         {
           tag: 'script',
