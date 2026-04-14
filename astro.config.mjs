@@ -104,6 +104,11 @@ async function openDiagramModal(source) {
       svgEl.style.cssText = 'display:block;width:100%;height:auto;';
       body.appendChild(document.importNode(svgEl, true));
       if (result.bindFunctions) result.bindFunctions(body.querySelector('svg'));
+    } else {
+      var parseErrMsg = document.createElement('p');
+      parseErrMsg.style.cssText = 'padding:2rem;color:#ef4444;font-family:monospace;font-size:0.85rem;';
+      parseErrMsg.textContent = 'Could not render diagram.';
+      body.appendChild(parseErrMsg);
     }
   } catch (err) {
     console.error('[mermaid-modal]', err);
@@ -176,20 +181,22 @@ async function initDiagrams() {
   } catch (e) { /* page may have no diagrams or a parse error on one — continue */ }
 
   // 3. Clean up transient class and enhance newly rendered SVGs
-  document.querySelectorAll('.mermaid-pending').forEach(function(pre) {
+  toRender.forEach(function(pre) {
     pre.classList.remove('mermaid-pending');
+    var svg = pre.querySelector('svg[id^="mermaid-"]');
+    if (svg) enhanceDiagram(svg);
   });
-  document.querySelectorAll('svg[id^="mermaid-"]').forEach(enhanceDiagram);
 }
 
 // Starlight uses View Transitions: astro:page-load fires on every navigation
-document.addEventListener('astro:page-load', function() { initDiagrams(); });
+var _mermaidInitialized = false;
+document.addEventListener('astro:page-load', function() { _mermaidInitialized = true; initDiagrams(); });
 
 // Fallback: if astro:page-load doesn't fire on initial load in this environment
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() { initDiagrams(); });
+  document.addEventListener('DOMContentLoaded', function() { if (!_mermaidInitialized) initDiagrams(); });
 } else {
-  initDiagrams();
+  if (!_mermaidInitialized) initDiagrams();
 }`,
         },
         {
